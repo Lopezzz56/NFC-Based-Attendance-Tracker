@@ -1,0 +1,219 @@
+//APPSCRIPT--------------------------------------------------------
+//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Attendance and Registration Mode.
+//________________________________________________________________________________doGet()
+function doGet(e) { 
+  Logger.log(JSON.stringify(e));
+  var result = 'OK';
+  if (e.parameter == 'undefined') {
+    result = 'No_Parameters';
+  }
+  else {
+    var sheet_id = '11jW_GRslt8KIbTwMn8qTFVJAcAhOwlEybv2gld5k0d4';  // Spreadsheet ID.
+    var sheet_UD = 'User_Data';  // Sheet name for user data.a
+
+    var sheet_open = SpreadsheetApp.openById(sheet_id);
+    var sheet_user_data = sheet_open.getSheetByName(sheet_UD);
+    
+    // sts_val is a variable to hold the status sent by ESP32.
+    // sts_val will contain "reg" or "atc".
+    // "reg" = new user registration.
+    // "atc" = attendance (time in and time out).
+    var sts_val = "";
+    
+    // uid_val is a variable to hold the UID of the RFID card or keychain sent by the ESP32.
+    var uid_val = "";
+    
+    // courseName
+    var courseName ="";
+    
+    //----------------------------------------Retrieves the value of the parameter sent by the ESP32.
+    for (var param in e.parameter) {
+      Logger.log('In for loop, param=' + param);
+      var value = stripQuotes(e.parameter[param]);
+      Logger.log(param + ':' + e.parameter[param]);
+      switch (param) {
+        case 'sts':
+          sts_val = value;
+          break;
+
+        case 'uid':
+          uid_val = value;
+          break;
+
+        case 'course': // Added to capture the course name from the URL
+          var courseName = value;
+          break;
+
+        default:
+          // result += ",unsupported_parameter";
+      }
+    }
+    //----------------------------------------
+    
+    //----------------------------------------Conditions for registering new users.
+    if (sts_val == 'reg') {
+      var check_new_UID = checkUID(sheet_id, sheet_UD, 2, uid_val);
+      
+      // Conditions when the UID has been registered. Then registration was cancelled.
+      if (check_new_UID == true) {
+        result += ",regErr01"; // Err_01 = UID is already registered.
+        
+        // Sends response payload to ESP32.
+        return ContentService.createTextOutput(result);
+      }
+
+      // Writes the new user's UID to the "user data" sheet.
+      var getLastRowUIDCol = findLastRow(sheet_id, sheet_UD, "B");  // Look for a row to write the new user's UID.
+      var newUID = sheet_open.getRange("B" + (getLastRowUIDCol + 1));
+      newUID.setValue(uid_val);
+      result += ",R_Successful";
+      
+      // Sends response payload to ESP32.
+      return ContentService.createTextOutput(result);
+    }
+    //----------------------------------------
+
+    //----------------------------------------Conditions for filling attendance (Time In and Time Out).
+    if (sts_val == 'atc') {
+  // Checks whether the UID is already registered in the "user data" sheet.
+  // findUID(Spreadsheet ID, sheet name, index column, UID value)
+  // index column : 1 = column A, 2 = column B and so on.
+  var FUID = findUID(sheet_id, sheet_UD, 2, uid_val);
+  
+  // "(FUID == -1)" means that the UID has not been registered in the "user data" sheet, so attendance filling is rejected.
+  if (FUID == -1) {
+    result += ",atcErr01"; // atcErr01 = UID not registered.
+    return ContentService.createTextOutput(result);
+  } else {
+    // After the UID has been checked and the result is that the UID has been registered,
+    // then take the "name" of the UID owner from the "user data" sheet.
+    // The name of the UID owner is in column "A" on the "user data" sheet.
+    var get_Range = sheet_user_data.getRange("A" + (FUID+2));
+    var user_name_by_UID = get_Range.getValue();
+
+    // Check if the user is already marked present in the course sheet
+var courseSheet = sheet_open.getSheetByName(courseName);
+var headers = courseSheet.getRange(1, 1, 1, courseSheet.getLastColumn()).getDisplayValues()[0]; // Change to getDisplayValues()
+var currentDate = Utilities.formatDate(new Date(), "Asia/Kolkata", "dd/MM/yyyy");
+    var dateColumnIndex = headers.indexOf(currentDate) + 1; // Change to currentDate
+    var dateExists = headers.includes(currentDate); // Change to currentDate
+
+
+if (!dateExists) {
+  // Date column doesn't exist, add new column
+  var lastColumn = courseSheet.getLastColumn();
+  courseSheet.getRange(1, lastColumn + 1).setValue(currentDate);
+  dateColumnIndex = lastColumn + 1;
+}
+
+// Now, check if the user is already marked present for today
+if (dateExists) {
+  var userDataRange = courseSheet.getRange("A2:A").getValues();
+  var userNames = userDataRange.flat();
+  
+  // Check if the user's name is in the userNames array
+  if (userNames.includes(user_name_by_UID)) {
+    // Check if the user is already marked as present ("P") for today
+    var userRowIndex = userNames.indexOf(user_name_by_UID);
+    var presentToday = courseSheet.getRange(userRowIndex + 2, dateColumnIndex).getValue();
+    
+    if (presentToday == "P") {
+      result += ",atcErr02"; // User already marked present today
+      return ContentService.createTextOutput(result);
+    }
+  }
+}
+
+// Marks attendance in the course sheet with "P"
+markAttendance(courseSheet, user_name_by_UID, dateColumnIndex);
+
+// Sends response payload to ESP32.
+result += ",P_Successful" + "," + user_name_by_UID + "," + currentDate + "," + dateExists +",," + "," + headers;
+return ContentService.createTextOutput(result);
+    //----------------------------------------
+  }
+}
+
+  }
+}
+
+function markAttendance(sheet, userName, dateColumnIndex) {
+  columnIndex=dateColumnIndex;
+  var lastRow = sheet.getLastRow();
+  var range = sheet.getRange(2, 1, lastRow - 1, 1);
+  var values = range.getValues();
+  
+  for (var i = 0; i < values.length; i++) {
+    if (values[i][0] == userName) {      
+        sheet.getRange(i + 2, columnIndex).setValue("P");
+        break;  
+    }
+  }
+}
+
+//________________________________________________________________________________
+
+//________________________________________________________________________________stripQuotes()
+function stripQuotes( value ) {
+  return value.replace(/^["']|['"]$/g, "");
+}
+//________________________________________________________________________________
+
+//________________________________________________________________________________findLastRow()
+// Function to find the last row in a certain column.
+// Reference : https://www.jsowl.com/find-the-last-row-of-a-single-column-in-google-sheets-in-apps-script/
+function findLastRow(id_sheet, name_sheet, name_column) {
+  var spreadsheet = SpreadsheetApp.openById(id_sheet);
+  var sheet = spreadsheet.getSheetByName(name_sheet);
+  var lastRow = sheet.getLastRow();
+
+  var range = sheet.getRange(name_column + lastRow);
+
+  if (range.getValue() !== "") {
+    return lastRow;
+  } else {
+    return range.getNextDataCell(SpreadsheetApp.Direction.UP).getRow();
+  }
+}
+//________________________________________________________________________________
+
+//________________________________________________________________________________findUID() 
+// Reference : https://stackoverflow.com/a/29546373
+function findUID(id_sheet, name_sheet, column_index, searchString) {
+  var open_sheet = SpreadsheetApp.openById(id_sheet);
+  var sheet = open_sheet.getSheetByName(name_sheet);
+  var columnValues = sheet.getRange(2, column_index, sheet.getLastRow()).getValues();  // 1st is header row.
+  var searchResult = columnValues.findIndex(searchString);  // Row Index - 2.
+
+  return searchResult;
+}
+//________________________________________________________________________________
+
+//________________________________________________________________________________checkUID()
+// Reference : https://stackoverflow.com/a/29546373
+function checkUID(id_sheet, name_sheet, column_index, searchString) {
+  var open_sheet = SpreadsheetApp.openById(id_sheet);
+  var sheet = open_sheet.getSheetByName(name_sheet); 
+  var columnValues = sheet.getRange(2, column_index, sheet.getLastRow()).getValues();  // 1st is header row.
+  var searchResult = columnValues.findIndex(searchString);  // Row Index - 2.
+
+  if(searchResult != -1) {
+    // searchResult + 2 is row index.
+    sheet.setActiveRange(sheet.getRange(searchResult + 2, 4)).setValue("UID has been registered in this row."); // Changed to set value in 4th column
+    return true;
+  } else {
+    return false;
+  }
+}
+//________________________________________________________________________________
+
+//________________________________________________________________________________findIndex()
+Array.prototype.findIndex = function(search){
+  if(search == "") return false;
+  for (var i=0; i<this.length; i++)
+    if (this[i].toString().indexOf(search) > -1 ) return i;
+
+  return -1;
+}
+//________________________________________________________________________________
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
