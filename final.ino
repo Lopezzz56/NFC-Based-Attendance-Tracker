@@ -31,8 +31,8 @@ const char* password = "TrAv2028"; //--> Your wifi password
 //----------------------------------------
 
 // Google script Web_App_URL.
-String Web_App_URL = "https://script.google.com/macros/s/AKfycbw_uedyWkN9JzquZpdi8RQAazsHMC8V9jrcZA2QNdgN8m8CY6d3dtZl0tUbvArvtSg/exec";
-
+String Web_App_URL = "";
+//google app script api
 String reg_Info = "";
 String atc_Info = "";
 String atc_Name = "";
