@@ -1,8 +1,9 @@
 # NFC-Based-Attendance-Tracker
  Developed an NFC-Based Attendance Tracker using ESP32 and PN532 NFC module. Enabled easy user registration and attendance marking via NFC ID cards with real-time LCD feedback. Securely stored attendance data in a cloud-based database, enhancing accuracy and efficiency in attendance management for institutions and organizations.
 
- ![FLOW CHART](/flow chart.png)
- ![USE CASE](use case diagram.png)
+![flow chart](https://github.com/user-attachments/assets/744efb59-f69d-469c-8d76-1d5fffdd9027)
+
+![use case diagram](https://github.com/user-attachments/assets/081c18c3-9e04-442a-9b7d-5c3b11d5ce11)
 
 Features
 Easy user registration and attendance marking using NFC ID cards.
@@ -80,3 +81,7 @@ Verify that the attendance is recorded in your Google Sheet.
 Troubleshooting
 No NFC Response: Check wiring connections between the ESP32 and PN532 module.
 No Data in Google Sheets: Ensure the Web App URL is correctly entered in the Arduino code and that the script has the necessary permissions.
+
+![sheets eg1](https://github.com/user-attachments/assets/2d097f2b-9c0c-445f-8d0d-9433cfb35af4)
+![sheets eg](https://github.com/user-attachments/assets/dfe5e445-f1a2-4898-b503-27af7513cf06)
+![userdata sheets](https://github.com/user-attachments/assets/34e9176f-b3c8-438f-9837-833fe61e99a4)
